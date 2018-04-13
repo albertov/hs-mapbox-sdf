@@ -4,7 +4,9 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 module Mapbox.SDF (
-  getRange
+  getGlyphsRange
+, encodeGlyphs
+, decodeGlyphs
 , Range (..)
 , SDFError (..)
 , Glyphs
@@ -33,6 +35,7 @@ import Data.ByteString (ByteString)
 import Data.Default (def)
 import Data.String (fromString)
 import Data.ByteString.Unsafe (unsafePackMallocCString, unsafePackMallocCStringLen, unsafeUseAsCStringLen)
+import qualified Data.ProtoLens.Encoding as PL
 import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.ForeignPtr (FinalizerPtr, newForeignPtr)
 import Foreign.C.String (CStringLen)
@@ -41,6 +44,7 @@ import System.IO.Unsafe (unsafePerformIO)
 import qualified Language.C.Inline.Cpp as C
 import qualified Language.C.Inline.Unsafe as CU
 import Protolude
+import Prelude (String)
 
 C.context (sdfCtx <> C.cppCtx <> C.bsCtx <> C.vecCtx <> C.fptrCtx)
 C.include "<mapbox/glyph_foundry.hpp>"
@@ -50,10 +54,17 @@ C.using "namespace sdf_glyph_foundry"
 data Range = Range Word32 Word32
   deriving (Eq, Show)
 
-getRange :: ByteString -> Range -> Either SDFError Glyphs
-getRange fontData range_ = unsafePerformIO $ try $ withLibrary $ \ lib -> do
+getGlyphsRange :: ByteString -> Range -> Either SDFError Glyphs
+getGlyphsRange fontData range_ = unsafePerformIO $ try $ withLibrary $ \ lib -> do
   fontStacks <- withFaces lib fontData (mapM (toFontStack range_))
   pure (def & stacks .~ fontStacks)
+
+encodeGlyphs :: Glyphs -> ByteString
+encodeGlyphs = PL.encodeMessage
+
+decodeGlyphs :: ByteString -> Either String Glyphs
+decodeGlyphs = PL.decodeMessage
+
 
 toFontStack :: Range -> Face -> IO Fontstack
 toFontStack (Range (fromIntegral->start) (fromIntegral->end)) face = do

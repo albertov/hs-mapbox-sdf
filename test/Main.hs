@@ -14,7 +14,7 @@ spec :: Spec
 spec = do
   it "can render noto sans" $ do
     fontData <- BS.readFile "test/Noto/NotoSans-Regular.ttf"
-    let gs  = getRange fontData (Range 0 1024)
+    let gs  = getGlyphsRange fontData (Range 0 1024)
     gs^?_Right.stacks.to length `shouldBe` Just 1
     gs^?_Right.stacks.ix 0.name `shouldBe` Just "Noto Sans Regular"
     gs^?_Right.stacks.ix 0.glyphs.to length `shouldBe` Just 945
@@ -22,7 +22,7 @@ spec = do
     
   it "can render font awesome" $ do
     fontData <- BS.readFile "test/Awesome/FontAwesome.otf"
-    let gs  = getRange fontData (Range 0 65550)
+    let gs  = getGlyphsRange fontData (Range 0 65550)
     gs^?_Right.stacks.to length `shouldBe` Just 1
     gs^?_Right.stacks.ix 0.name `shouldBe` Just "FontAwesome Regular"
     gs^?_Right.stacks.ix 0.glyphs.to length `shouldBe` Just 494
