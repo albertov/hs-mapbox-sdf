@@ -32,9 +32,10 @@ import Control.Lens ((&), (.~))
 import Data.ByteString (ByteString)
 import Data.Default (def)
 import Data.String (fromString)
-import Data.ByteString.Unsafe (unsafePackMallocCString, unsafePackMallocCStringLen)
+import Data.ByteString.Unsafe (unsafePackMallocCString, unsafePackMallocCStringLen, unsafeUseAsCStringLen)
 import Foreign.Ptr (Ptr, nullPtr)
 import Foreign.ForeignPtr (FinalizerPtr, newForeignPtr)
+import Foreign.C.String (CStringLen)
 import System.IO.Unsafe (unsafePerformIO)
 
 import qualified Language.C.Inline.Cpp as C
@@ -58,7 +59,7 @@ toFontStack :: Range -> Face -> IO Fontstack
 toFontStack (Range (fromIntegral->start) (fromIntegral->end)) face = do
   name_ <- faceName face
   glyphs_ <- catMaybes
-         <$> mapM (\code -> maybe (pure Nothing) (fmap Just . toGlyph code) =<< glyphInfo face code)
+         <$> mapM (\code -> maybe (pure Nothing) (fmap Just . toGlyph code) =<< renderGlyph face code)
                   [start..end]
   pure $ def & name   .~ name_
              & range  .~ fromString (show start <> "-" <> show end)
@@ -79,6 +80,8 @@ toGlyph charCode p = do
       if (*$(char **bm)) {
         std::memcpy(*$(char **bm), g.bitmap.data(), g.bitmap.size());
       }
+    } else {
+      *$(char **bm) = nullptr;
     }
   }|]
   bitmap_ <- if bm /= nullPtr
@@ -142,20 +145,28 @@ destroyFace :: Face -> IO ()
 destroyFace p =
   [CU.exp|void { FT_Done_Face($(FT_Face p)) }|]
 
-
 withFaces :: Library -> ByteString -> ([Face] -> IO a) -> IO a
-withFaces lib buf f = evalContT (getFaces >>= liftIO . f)
+withFaces lib bs f = unsafeUseAsCStringLen bs (withFaces' lib f)
+
+withFaces' :: Library -> ([Face] -> IO a) -> CStringLen -> IO a
+withFaces' lib f (buf, fromIntegral -> len) = evalContT (getFaces >>= liftIO . f)
   where
     getFace ix = ContT $ bracket alloc destroyFace
       where alloc = throwIfNull Face (InvalidFaceIndex ix) =<< C.withPtr_ (\face -> [CU.block|void{
         FT_Error face_error =
           FT_New_Memory_Face($(FT_Library lib),
-                             reinterpret_cast<FT_Byte const*>($bs-ptr:buf),
-                             static_cast<FT_Long>($bs-len:buf),
+                             reinterpret_cast<FT_Byte const*>($(char *buf)),
+                             static_cast<FT_Long>($(long len)),
                              static_cast<FT_Long>($(int ix)),
                              $(FT_Face *face));
-        if (face_error)
+        if (face_error) {
           *$(FT_Face *face) = nullptr;
+        } else {
+          // Set face size
+          const double scale_factor = 1.0;
+          double size = 24 * scale_factor;
+          FT_Set_Char_Size(*$(FT_Face *face),0,(FT_F26Dot6)(size * (1<<6)),0,0);
+          }
         }|])
 
     getFaces = do
@@ -164,8 +175,8 @@ withFaces lib buf f = evalContT (getFaces >>= liftIO . f)
       unless (numFaces>=0) (liftIO (throwIO (InvalidNumFaces numFaces)))
       (face0:) <$> mapM getFace [1..numFaces-1]
 
-glyphInfo :: Face -> C.CULong -> IO (Maybe GlyphInfo)
-glyphInfo face charCode =
+renderGlyph :: Face -> C.CULong -> IO (Maybe GlyphInfo)
+renderGlyph face charCode =
   bracketOnError alloc freeGI
     (maybe (pure Nothing) (fmap (Just . GlyphInfo) . newForeignPtr destroyGlyphInfo) . maybePtr)
   where

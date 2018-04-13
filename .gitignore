@@ -1,3 +1,4 @@
 dist-newstyle
 *.sw?
 cabal.project.local
+dist

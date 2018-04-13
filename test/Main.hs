@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Test.Hspec
 import Control.Lens
+import Data.Maybe (isJust)
 import Mapbox.SDF
 import Prelude hiding (id)
 
@@ -10,11 +11,21 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = it "can render awesome fonts" $ do
-  fontData <- BS.readFile "test/Awesome/FontAwesome.otf"
-  let gs  = getRange fontData (Range minBound (maxBound `div` 4))
-  gs^?_Right.stacks.to length `shouldBe` Just 1
-  gs^?_Right.stacks.ix 0.name `shouldBe` Just "FontAwesome Regular"
-  gs^?_Right.stacks.ix 0.glyphs.to length `shouldBe` Just 7
-  gs^.._Right.stacks.ix 0.glyphs.traverse.id `shouldBe` [32,168,169,174,180,198,216]
-  
+spec = do
+  it "can render noto sans" $ do
+    fontData <- BS.readFile "test/Noto/NotoSans-Regular.ttf"
+    let gs  = getRange fontData (Range 0 1024)
+    gs^?_Right.stacks.to length `shouldBe` Just 1
+    gs^?_Right.stacks.ix 0.name `shouldBe` Just "Noto Sans Regular"
+    gs^?_Right.stacks.ix 0.glyphs.to length `shouldBe` Just 945
+    gs^.._Right.stacks.ix 0.glyphs.traverse.maybe'bitmap `shouldSatisfy` any isJust
+    
+  it "can render font awesome" $ do
+    fontData <- BS.readFile "test/Awesome/FontAwesome.otf"
+    let gs  = getRange fontData (Range 0 65550)
+    gs^?_Right.stacks.to length `shouldBe` Just 1
+    gs^?_Right.stacks.ix 0.name `shouldBe` Just "FontAwesome Regular"
+    gs^?_Right.stacks.ix 0.glyphs.to length `shouldBe` Just 494
+    let expected = [32,168,169,174,180,198,216]
+    take (length expected) (gs^.._Right.stacks.ix 0.glyphs.traverse.id) `shouldBe` expected
+    gs^.._Right.stacks.ix 0.glyphs.traverse.maybe'bitmap `shouldSatisfy` any isJust
