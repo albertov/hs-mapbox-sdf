@@ -1,0 +1,3 @@
+[submodule "sdf-glyph-foundry"]
+	path = sdf-glyph-foundry
+	url = https://github.com/mapbox/sdf-glyph-foundry.git
