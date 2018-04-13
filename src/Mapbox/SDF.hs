@@ -128,6 +128,7 @@ withLibrary :: (Library -> IO a) -> IO a
 withLibrary = bracket createLibrary destroyLibrary
 
 data SDFError = LibraryInitError
+              | InvalidFontData
               | InvalidFaceIndex C.CInt
               | InvalidNumFaces C.CInt
               | NoFontFamilyName
@@ -135,8 +136,9 @@ data SDFError = LibraryInitError
 instance Exception SDFError
 
 
-throwIfNull :: (Exception e, Eq a1) =>
-                     (Ptr a2 -> a1) -> e -> a1 -> IO a1
+throwIfNull
+  :: (Exception e, Eq b)
+  => (Ptr a -> b) -> e -> b -> IO b
 throwIfNull ctr err ptr | ptr == ctr nullPtr = throwIO err
 throwIfNull _   _   ptr                      = pure ptr
 
@@ -163,22 +165,25 @@ withFaces' :: Library -> ([Face] -> IO a) -> CStringLen -> IO a
 withFaces' lib f (buf, fromIntegral -> len) = evalContT (getFaces >>= liftIO . f)
   where
     getFace ix = ContT $ bracket alloc destroyFace
-      where alloc = throwIfNull Face (InvalidFaceIndex ix) =<< C.withPtr_ (\face -> [CU.block|void{
-        FT_Error face_error =
-          FT_New_Memory_Face($(FT_Library lib),
-                             reinterpret_cast<FT_Byte const*>($(char *buf)),
-                             static_cast<FT_Long>($(long len)),
-                             static_cast<FT_Long>($(int ix)),
-                             $(FT_Face *face));
-        if (face_error) {
-          *$(FT_Face *face) = nullptr;
-        } else {
-          // Set face size
-          const double scale_factor = 1.0;
-          double size = 24 * scale_factor;
-          FT_Set_Char_Size(*$(FT_Face *face),0,(FT_F26Dot6)(size * (1<<6)),0,0);
-          }
-        }|])
+      where
+        alloc = throwIfNull Face exc =<< C.withPtr_ (\face -> [CU.block|void{
+          FT_Error face_error =
+            FT_New_Memory_Face($(FT_Library lib),
+                               reinterpret_cast<FT_Byte const*>($(char *buf)),
+                               static_cast<FT_Long>($(long len)),
+                               static_cast<FT_Long>($(int ix)),
+                               $(FT_Face *face));
+          if (face_error) {
+            *$(FT_Face *face) = nullptr;
+          } else {
+            // Set face size
+            const double scale_factor = 1.0;
+            double size = 24 * scale_factor;
+            FT_Set_Char_Size(*$(FT_Face *face),0,(FT_F26Dot6)(size * (1<<6)),0,0);
+            }
+          }|])
+        exc | ix==0     = InvalidFontData
+            | otherwise = InvalidFaceIndex ix
 
     getFaces = do
       face0 <- getFace 0

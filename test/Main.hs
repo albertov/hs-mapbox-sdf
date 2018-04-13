@@ -29,3 +29,6 @@ spec = do
     let expected = [32,168,169,174,180,198,216]
     take (length expected) (gs^.._Right.stacks.ix 0.glyphs.traverse.id) `shouldBe` expected
     gs^.._Right.stacks.ix 0.glyphs.traverse.maybe'bitmap `shouldSatisfy` any isJust
+
+  it "returns error if invalid font data" $
+    getGlyphsRange "baddata" (Range 0 65550) `shouldBe` Left InvalidFontData
