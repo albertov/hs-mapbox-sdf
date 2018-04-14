@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -34,6 +35,7 @@ import Control.Lens ((&), (.~))
 import Data.ByteString (ByteString)
 import Data.Default (def)
 import Data.String (fromString)
+import qualified Data.Semigroup as SG (Semigroup(..))
 import Data.ByteString.Unsafe (unsafePackMallocCString, unsafePackMallocCStringLen, unsafeUseAsCStringLen)
 import qualified Data.ProtoLens.Encoding as PL
 import Foreign.Ptr (Ptr, nullPtr)
@@ -216,3 +218,10 @@ maybePtr p | p==nullPtr = Nothing
 maybePtr p = Just p
 
 foreign import ccall "&hs_mapbox_sdf_destroyGlyphInfo" destroyGlyphInfo :: FinalizerPtr GlyphInfo
+
+instance SG.Semigroup Glyphs where
+  Glyphs a <> Glyphs b = Glyphs (a SG.<> b)
+
+instance Monoid Glyphs where
+  mempty = def
+  mappend = (SG.<>)

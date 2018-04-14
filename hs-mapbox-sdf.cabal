@@ -22,7 +22,7 @@ library
     Mapbox.SDF.Context
     Mapbox.SDF.Proto.Glyphs
   build-depends:
-    base >=4.10 && <4.11,
+    base >=4.10 && <5,
     inline-c >=0.6 && <0.7,
     inline-c-cpp >=0.2 && <0.3,
     proto-lens,
