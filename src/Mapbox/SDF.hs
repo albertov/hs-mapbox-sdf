@@ -191,7 +191,9 @@ withFaces' lib f (buf, fromIntegral -> len) = evalContT (getFaces >>= liftIO . f
       unless (numFaces>=0) (liftIO (throwIO (InvalidNumFaces numFaces)))
       (face0:) <$> mapM getFace [1..numFaces-1]
 
-renderGlyph :: Face -> C.CULong -> IO (Maybe GlyphInfo)
+type CharCode = C.CULong
+
+renderGlyph :: Face -> CharCode -> IO (Maybe GlyphInfo)
 renderGlyph face charCode =
   bracketOnError alloc freeGI
     (maybe (pure Nothing) (fmap (Just . GlyphInfo) . newForeignPtr destroyGlyphInfo) . maybePtr)
