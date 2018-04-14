@@ -19,7 +19,6 @@ cabal-version:       >=1.10
 library
   exposed-modules:
     Mapbox.SDF
-  other-modules:       
     Mapbox.SDF.Context
     Mapbox.SDF.Proto.Glyphs
   build-depends:
